@@ -1,10 +1,10 @@
-# International-Flight-Finder
+# International-Flight-Finder 
 A tool for finding international flights within 100km of any airport
 
-**Project name**:
+**Project name**:  
 International Flight Finder
 
-**What does it do & how does it help SkyCards players?**
+**What does it do & how does it help SkyCards players?**  
 When unlocking many airports for free travel one of the requirements is to catch 2 international flights. FlightRadar24 does not currently offer a filter capable of displaying this so I created this tool. It attempts to find all flights within 100km (standard catch circle radius) of your chosen airport, then filters them for any flights where the origin or destination airport's country differs from that of the chosen airport.
 
 The tool is written in PowerShell and uses only free APIs, specifically:
@@ -13,7 +13,7 @@ The tool is written in PowerShell and uses only free APIs, specifically:
 * adsbdb.com to query each flight for its routing information
   * The query rate limits for this site are calculated over a rolling 60 second time period. 512 requests will see you blocked for 60 seconds. 1024 requests will see you blocked for 300 seconds. This is totally outside of my control.
 
-**Instructions on how to use**
+**Instructions on how to use**  
 Download the attached PowerShell script. I will assume you save it to your default Downloads folder. Launch Windows PowerShell from your Start Menu. It will by default place you in your user profile home folder. To change to your Downloads folder type `cd Downloads` and press Enter. To launch the script, type `.\find-international-flights.ps1` and press Enter. 
 
 If this is the first time running the script it will download the airports data file from ourairports.com and save it to the same folder.
@@ -76,5 +76,5 @@ Once the queries to adsbdb.com have finished the script will display details of 
 > `TAM8192  A20N GRU (BR) AEP (AR) 53.5 km 25100`  
 > `LAN715   B788 MAD (ES) GRU (BR) 72.1 km 27375`  
 
-**Current maintainers**
+**Current maintainers**  
 @thetoastmonster
