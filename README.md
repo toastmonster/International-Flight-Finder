@@ -1,5 +1,5 @@
 # International-Flight-Finder 
-A tool for finding international flights within 100km of any airport
+A tool for finding international flights within 100km (or optionally 200km) of any airport
 
 **Project name**:  
 International Flight Finder
