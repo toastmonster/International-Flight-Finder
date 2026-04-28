@@ -70,9 +70,9 @@ Step 3: Filtering for international routes...
 > ` 9   144.30 N660UA UAL947   B763 AMS, Amsterdam, NL  IAD, Washington, US`  
 > `10   148.40 G-JZHN EXS8CL   B738 NCL, Newcastle, GB  LPA, Gran Canaria Island, ES`  
 > 
->`Enter a number to open on FlightRadar24, M for more results, or Q to quit.`  
+>`Enter a number to open on FlightRadar24, M for more, R to refresh, or Q to quit`  
 
-At this point you can enter a number to open the FlightRadar24 web page to view that flight, allowing you to easily pinpoint the aircraft within the Sky Cards game. You press M it will show you the next batch of results, and if you press Q it will quit the app.
+At this point you can enter a number to open the FlightRadar24 web page to view that flight, allowing you to easily pinpoint the aircraft within the Sky Cards game. You press M it will show you the next batch of results, and if you press R it will start the process over again with the same airport, fetching fresh aircraft and route data from the API. Entering Q will remove temporary files and quit the app.
 
 **Current maintainers**  
 @thetoastmonster
