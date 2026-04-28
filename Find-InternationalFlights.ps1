@@ -196,6 +196,17 @@ function Get-Routes {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: remove debug JSON files created during the run
+# ---------------------------------------------------------------------------
+function Remove-DebugFiles {
+    param([string]$Dir)
+    $files = Get-ChildItem -Path $Dir -Filter 'debug_*.json' -ErrorAction SilentlyContinue
+    foreach ($f in $files) {
+        Remove-Item -Path $f.FullName -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -203,6 +214,9 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $csvPath   = Join-Path $scriptDir 'airports.csv'
 $remoteUrl = "https://ourairports.com/data/airports.csv"
 $debugDir  = $scriptDir
+
+# Clean up any orphan debug files
+Remove-DebugFiles -Dir $debugDir
 
 Write-Host "Debug files will be saved to: $debugDir" -ForegroundColor DarkGray
 
@@ -343,17 +357,6 @@ foreach ($route in $routes) {
             Destination  = $destLabel
         }
     )
-}
-
-# ---------------------------------------------------------------------------
-# Helper: remove debug JSON files created during the run
-# ---------------------------------------------------------------------------
-function Remove-DebugFiles {
-    param([string]$Dir)
-    $files = Get-ChildItem -Path $Dir -Filter 'debug_*.json' -ErrorAction SilentlyContinue
-    foreach ($f in $files) {
-        Remove-Item -Path $f.FullName -Force -ErrorAction SilentlyContinue
-    }
 }
 
 # ---------------------------------------------------------------------------
