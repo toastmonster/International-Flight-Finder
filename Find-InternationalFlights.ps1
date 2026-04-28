@@ -263,105 +263,117 @@ Write-Host "  Country : $airportCountry"
 Write-Host "  Location: $airportLat, $airportLon"
 Write-Host ""
 
-# Step 1 - fetch nearby aircraft
-Write-Host "Step 1: Fetching aircraft within 200 km..." -ForegroundColor Cyan
-$nearbyAircraft = Get-AircraftNearPoint -Lat $airportLat -Lon $airportLon -RadiusKm 200
+# ---------------------------------------------------------------------------
+# Fetch aircraft, get routes and filter to international flights.
+# Returns a sorted list of international flight objects, or empty array.
+# ---------------------------------------------------------------------------
+function Get-InternationalFlights {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [int]$RadiusKm,
+        [string]$Country,
+        [string]$DebugDir
+    )
 
-if (-not $nearbyAircraft -or $nearbyAircraft.Count -eq 0) {
-    Write-Host "No aircraft found near $($airport.name)." -ForegroundColor Yellow
-    exit 0
-}
+    # Step 1 - fetch nearby aircraft
+    Write-Host "Step 1: Fetching aircraft within $RadiusKm km..." -ForegroundColor Cyan
+    $nearbyAircraft = Get-AircraftNearPoint -Lat $Lat -Lon $Lon -RadiusKm $RadiusKm
 
-Write-Host "  Found $($nearbyAircraft.Count) aircraft." -ForegroundColor DarkGray
-$nearbyAircraft | ConvertTo-Json -Depth 5 |
-    Set-Content -Path (Join-Path $debugDir 'debug_aircraft_response.json') -Encoding UTF8
-Write-Host "  Aircraft data saved to: $(Join-Path $debugDir 'debug_aircraft_response.json')" -ForegroundColor DarkGray
-Write-Host ""
-
-# Step 2 - fetch routes
-Write-Host "Step 2: Fetching route information..." -ForegroundColor Cyan
-$routes = @(Get-Routes -Aircraft $nearbyAircraft -DebugDir $debugDir)
-
-if ($routes.Count -eq 0) {
-    Write-Host "No route data returned. Check the debug files in: $debugDir" -ForegroundColor Yellow
-    exit 0
-}
-
-Write-Host "  Received route data for $($routes.Count) aircraft." -ForegroundColor DarkGray
-Write-Host ""
-
-# Build callsign -> aircraft lookup for registration, type and position
-$aircraftByCallsign = @{}
-foreach ($ac in $nearbyAircraft) {
-    $flight = Get-Prop $ac 'flight'
-    if ($flight -and $flight.Trim() -ne '') {
-        $aircraftByCallsign[$flight.Trim()] = $ac
+    if (-not $nearbyAircraft -or $nearbyAircraft.Count -eq 0) {
+        Write-Host "No aircraft found." -ForegroundColor Yellow
+        return @()
     }
-}
 
-# Step 3 - filter for international routes
-Write-Host "Step 3: Filtering for international routes..." -ForegroundColor Cyan
-Write-Host ""
+    Write-Host "  Found $($nearbyAircraft.Count) aircraft." -ForegroundColor DarkGray
+    $nearbyAircraft | ConvertTo-Json -Depth 5 |
+        Set-Content -Path (Join-Path $DebugDir 'debug_aircraft_response.json') -Encoding UTF8
+    Write-Host "  Aircraft data saved to: $(Join-Path $DebugDir 'debug_aircraft_response.json')" -ForegroundColor DarkGray
+    Write-Host ""
 
-$internationalFlights = New-Object System.Collections.Generic.List[object]
+    # Step 2 - fetch routes
+    Write-Host "Step 2: Fetching route information..." -ForegroundColor Cyan
+    $routes = @(Get-Routes -Aircraft $nearbyAircraft -DebugDir $DebugDir)
 
-foreach ($route in $routes) {
+    if ($routes.Count -eq 0) {
+        Write-Host "No route data returned. Check the debug files in: $DebugDir" -ForegroundColor Yellow
+        return @()
+    }
 
-    if (-not $route.airport_codes -or $route.airport_codes -eq 'unknown') { continue }
+    Write-Host "  Received route data for $($routes.Count) aircraft." -ForegroundColor DarkGray
+    Write-Host ""
 
-    $routeAirports = $route._airports
-    if (-not $routeAirports -or $routeAirports.Count -lt 2) { continue }
+    # Build callsign -> aircraft lookup for registration, type and position
+    $aircraftByCallsign = @{}
+    foreach ($ac in $nearbyAircraft) {
+        $flight = Get-Prop $ac 'flight'
+        if ($flight -and $flight.Trim() -ne '') {
+            $aircraftByCallsign[$flight.Trim()] = $ac
+        }
+    }
 
-    $originAirport = $routeAirports[0]
-    $destAirport   = $routeAirports[$routeAirports.Count - 1]
+    # Step 3 - filter for international routes
+    Write-Host "Step 3: Filtering for international routes..." -ForegroundColor Cyan
+    Write-Host ""
 
-    $originCountry = $originAirport.countryiso2
-    $destCountry   = $destAirport.countryiso2
+    $results = New-Object System.Collections.Generic.List[object]
 
-    $originIsIntl = $originCountry -and ($originCountry.ToUpper() -ne $airportCountry)
-    $destIsIntl   = $destCountry   -and ($destCountry.ToUpper()   -ne $airportCountry)
+    foreach ($route in $routes) {
 
-    if (-not $originIsIntl -and -not $destIsIntl) { continue }
+        if (-not $route.airport_codes -or $route.airport_codes -eq 'unknown') { continue }
 
-    # Aircraft registration and type
-    $ac  = $aircraftByCallsign[$route.callsign]
-    $reg = Get-Prop $ac 'r'
-    $typ = Get-Prop $ac 't'
-    if (-not $reg) { $reg = '(unknown)' }
-    if (-not $typ) { $typ = '' }
+        $routeAirports = $route._airports
+        if (-not $routeAirports -or $routeAirports.Count -lt 2) { continue }
 
-    # Distance from the searched airport
-    $acLat  = Get-Prop $ac 'lat'
-    $acLon  = Get-Prop $ac 'lon'
-    if ($null -ne $acLat -and $null -ne $acLon) {
-        $distKm = [math]::Round(
-            (Get-DistanceKm -Lat1 $airportLat -Lon1 $airportLon -Lat2 $acLat -Lon2 $acLon),
-            1
+        $originAirport = $routeAirports[0]
+        $destAirport   = $routeAirports[$routeAirports.Count - 1]
+
+        $originCountry = $originAirport.countryiso2
+        $destCountry   = $destAirport.countryiso2
+
+        $originIsIntl = $originCountry -and ($originCountry.ToUpper() -ne $Country)
+        $destIsIntl   = $destCountry   -and ($destCountry.ToUpper()   -ne $Country)
+
+        if (-not $originIsIntl -and -not $destIsIntl) { continue }
+
+        $ac  = $aircraftByCallsign[$route.callsign]
+        $reg = Get-Prop $ac 'r'
+        $typ = Get-Prop $ac 't'
+        if (-not $reg) { $reg = '(unknown)' }
+        if (-not $typ) { $typ = '' }
+
+        $acLat = Get-Prop $ac 'lat'
+        $acLon = Get-Prop $ac 'lon'
+        if ($null -ne $acLat -and $null -ne $acLon) {
+            $distKm = [math]::Round(
+                (Get-DistanceKm -Lat1 $Lat -Lon1 $Lon -Lat2 $acLat -Lon2 $acLon),
+                1
+            )
+        }
+        else {
+            $distKm = $null
+        }
+
+        $originLabel = "$($originAirport.iata), $($originAirport.location), $($originAirport.countryiso2)"
+        $destLabel   = "$($destAirport.iata), $($destAirport.location), $($destAirport.countryiso2)"
+
+        $results.Add(
+            [PSCustomObject]@{
+                DistanceKm   = $distKm
+                Registration = $reg
+                Callsign     = $route.callsign
+                Type         = $typ
+                Origin       = $originLabel
+                Destination  = $destLabel
+            }
         )
     }
-    else {
-        $distKm = $null
-    }
 
-    # Build labels directly from the API response fields
-    $originLabel = "$($originAirport.iata), $($originAirport.location), $($originAirport.countryiso2)"
-    $destLabel   = "$($destAirport.iata), $($destAirport.location), $($destAirport.countryiso2)"
-
-    $internationalFlights.Add(
-        [PSCustomObject]@{
-            DistanceKm   = $distKm
-            Registration = $reg
-            Callsign     = $route.callsign
-            Type         = $typ
-            Origin       = $originLabel
-            Destination  = $destLabel
-        }
-    )
+    return @($results | Sort-Object -Property DistanceKm)
 }
 
 # ---------------------------------------------------------------------------
-# Helper: display one page of results (10 rows) and return the page
-# so the caller can reference rows by number
+# Helper: display one page of results
 # ---------------------------------------------------------------------------
 function Show-Page {
     param([object[]]$Page, [int]$StartNumber)
@@ -378,29 +390,38 @@ function Show-Page {
 }
 
 # ---------------------------------------------------------------------------
-# Output
+# Output loop — supports R to refresh, M for more pages, Q to quit
 # ---------------------------------------------------------------------------
 
-Write-Host ("=" * 70)
-Write-Host " International flights near $($airport.name) ($($airport.icao_code)) [$airportCountry]"
-Write-Host ("=" * 70)
-Write-Host ""
+$doRefresh = $true
 
-if ($internationalFlights.Count -eq 0) {
-    Write-Host "No international flights found in the search results." -ForegroundColor Yellow
+while ($doRefresh) {
+    $doRefresh = $false
+
     Remove-DebugFiles -Dir $debugDir
-}
-else {
-    # Sort all results once; paging works through this sorted array
-    $sorted    = @($internationalFlights | Sort-Object -Property DistanceKm)
+
+    $sorted = Get-InternationalFlights `
+        -Lat      $airportLat `
+        -Lon      $airportLon `
+        -RadiusKm 200 `
+        -Country  $airportCountry `
+        -DebugDir $debugDir
+
+    Write-Host ("=" * 70)
+    Write-Host " International flights near $($airport.name) ($($airport.icao_code)) [$airportCountry]"
+    Write-Host ("=" * 70)
+    Write-Host ""
+
+    if ($sorted.Count -eq 0) {
+        Write-Host "No international flights found in the search results." -ForegroundColor Yellow
+        Remove-DebugFiles -Dir $debugDir
+        break
+    }
+
     $total     = $sorted.Count
     $pageSize  = 10
-    $pageStart = 0   # index into $sorted of the first row on the current page
+    $pageStart = 0
 
-    # The rows visible on the current page (updated each time we show a page)
-    $currentPage = @()
-
-    # Show the first page
     $pageEnd     = [math]::Min($pageStart + $pageSize - 1, $total - 1)
     $currentPage = $sorted[$pageStart..$pageEnd]
     $moreExist   = ($pageEnd -lt $total - 1)
@@ -409,14 +430,13 @@ else {
     Write-Host ""
     Show-Page -Page $currentPage -StartNumber ($pageStart + 1)
 
-    # Prompt loop
+    $userInput = ''
+
     while ($true) {
-        if ($moreExist) {
-            Write-Host "Enter a number to open on FlightRadar24, M for more results, or Q to quit." -ForegroundColor Cyan
-        }
-        else {
-            Write-Host "Enter a number to open on FlightRadar24, or Q to quit." -ForegroundColor Cyan
-        }
+        $prompt = "Enter a number to open on FlightRadar24"
+        if ($moreExist) { $prompt += ", M for more" }
+        $prompt += ", R to refresh, or Q to quit"
+        Write-Host $prompt -ForegroundColor Cyan
 
         $userInput = (Read-Host "Choice").Trim()
 
@@ -427,8 +447,15 @@ else {
             break
         }
 
+        if ($userInput -match '^[Rr]$') {
+            Write-Host ""
+            Write-Host "Refreshing..." -ForegroundColor Cyan
+            Write-Host ""
+            $doRefresh = $true
+            break
+        }
+
         if ($moreExist -and $userInput -match '^[Mm]$') {
-            # Advance to the next page
             $pageStart   = $pageStart + $pageSize
             $pageEnd     = [math]::Min($pageStart + $pageSize - 1, $total - 1)
             $currentPage = $sorted[$pageStart..$pageEnd]
@@ -443,7 +470,6 @@ else {
 
         if ($userInput -match '^\d+$') {
             $num = [int]$userInput
-            # Find the row with this display number anywhere in the sorted list
             $idx = $num - 1
             if ($idx -ge 0 -and $idx -lt $total) {
                 $reg = $sorted[$idx].Registration
@@ -457,20 +483,17 @@ else {
             continue
         }
 
-        # If we reach here the input was not recognised
-        if ($moreExist) {
-            Write-Host "  Invalid input. Enter a number, M for more, or Q to quit." -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "  Invalid input. Enter a number or Q to quit." -ForegroundColor Yellow
-        }
+        $hint = if ($moreExist) { "a number, M for more, R to refresh, or Q to quit" } else { "a number, R to refresh, or Q to quit" }
+        Write-Host "  Invalid input. Enter $hint." -ForegroundColor Yellow
     }
 
-    # If all pages were exhausted via M (no more results left), clean up and exit
-    if (-not $moreExist -and $userInput -notmatch '^[Qq]$') {
-        Write-Host ""
-        Write-Host "All results shown." -ForegroundColor Green
-        Remove-DebugFiles -Dir $debugDir
+    # All pages exhausted via M with no Q/R — clean up and exit
+    if (-not $doRefresh -and $userInput -notmatch '^[Qq]$' -and $userInput -notmatch '^[Rr]$') {
+        if (-not $moreExist) {
+            Write-Host ""
+            Write-Host "All results shown." -ForegroundColor Green
+            Remove-DebugFiles -Dir $debugDir
+        }
     }
 }
 
