@@ -235,33 +235,39 @@ $allAirports = Import-Csv -Path $csvPath
 
 Write-Host "  Loaded $($allAirports.Count) airports." -ForegroundColor DarkGray
 
-Write-Host ""
-$inputCode = Read-Host "Enter airport IATA or ICAO code (e.g. LHR or EGLL)"
+$changeAirport = $true
 
-if (-not $inputCode.Trim()) {
-    Write-Error "No airport code entered."
-    exit 1
-}
+while ($changeAirport) {
+    $changeAirport = $false
 
-$airport = Find-Airport -Code $inputCode -Airports $allAirports
+    Write-Host ""
+    $inputCode = Read-Host "Enter airport IATA or ICAO code (e.g. LHR or EGLL)"
 
-if (-not $airport) {
-    Write-Error "Airport '$inputCode' not found in airports.csv."
-    exit 1
-}
+    if (-not $inputCode.Trim()) {
+        Write-Error "No airport code entered."
+        exit 1
+    }
 
-$airportCountry = $airport.iso_country.Trim().ToUpper()
-$airportLat     = [double]$airport.latitude_deg
-$airportLon     = [double]$airport.longitude_deg
+    $airport = Find-Airport -Code $inputCode -Airports $allAirports
 
-Write-Host ""
-Write-Host "Found airport:" -ForegroundColor Green
-Write-Host "  Name    : $($airport.name)"
-Write-Host "  ICAO    : $($airport.icao_code)"
-Write-Host "  IATA    : $($airport.iata_code)"
-Write-Host "  Country : $airportCountry"
-Write-Host "  Location: $airportLat, $airportLon"
-Write-Host ""
+    if (-not $airport) {
+        Write-Host "Airport '$inputCode' not found in airports.csv. Please try again." -ForegroundColor Yellow
+        $changeAirport = $true
+        continue
+    }
+
+    $airportCountry = $airport.iso_country.Trim().ToUpper()
+    $airportLat     = [double]$airport.latitude_deg
+    $airportLon     = [double]$airport.longitude_deg
+
+    Write-Host ""
+    Write-Host "Found airport:" -ForegroundColor Green
+    Write-Host "  Name    : $($airport.name)"
+    Write-Host "  ICAO    : $($airport.icao_code)"
+    Write-Host "  IATA    : $($airport.iata_code)"
+    Write-Host "  Country : $airportCountry"
+    Write-Host "  Location: $airportLat, $airportLon"
+    Write-Host ""
 
 # ---------------------------------------------------------------------------
 # Fetch aircraft, get routes and filter to international flights.
@@ -435,7 +441,7 @@ while ($doRefresh) {
     while ($true) {
         $prompt = "Enter a number to open on FlightRadar24"
         if ($moreExist) { $prompt += ", M for more" }
-        $prompt += ", R to refresh, or Q to quit"
+        $prompt += ", R to refresh, C to change airport, or Q to quit"
         Write-Host $prompt -ForegroundColor Cyan
 
         $userInput = (Read-Host "Choice").Trim()
@@ -452,6 +458,13 @@ while ($doRefresh) {
             Write-Host "Refreshing..." -ForegroundColor Cyan
             Write-Host ""
             $doRefresh = $true
+            break
+        }
+
+        if ($userInput -match '^[Cc]$') {
+            Remove-DebugFiles -Dir $debugDir
+            $doRefresh = $false
+            $changeAirport = $true
             break
         }
 
@@ -483,12 +496,12 @@ while ($doRefresh) {
             continue
         }
 
-        $hint = if ($moreExist) { "a number, M for more, R to refresh, or Q to quit" } else { "a number, R to refresh, or Q to quit" }
+        $hint = if ($moreExist) { "a number, M for more, R to refresh, C to change airport, or Q to quit" } else { "a number, R to refresh, C to change airport, or Q to quit" }
         Write-Host "  Invalid input. Enter $hint." -ForegroundColor Yellow
     }
 
     # All pages exhausted via M with no Q/R — clean up and exit
-    if (-not $doRefresh -and $userInput -notmatch '^[Qq]$' -and $userInput -notmatch '^[Rr]$') {
+    if (-not $doRefresh -and -not $changeAirport -and $userInput -notmatch '^[Qq]$' -and $userInput -notmatch '^[Rr]$') {
         if (-not $moreExist) {
             Write-Host ""
             Write-Host "All results shown." -ForegroundColor Green
@@ -498,3 +511,4 @@ while ($doRefresh) {
 }
 
 Write-Host ""
+} # end while ($changeAirport)
