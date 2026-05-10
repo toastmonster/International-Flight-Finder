@@ -384,8 +384,12 @@ function Get-InternationalFlights {
 function Show-Page {
     param([object[]]$Page, [int]$StartNumber)
 
+    # Force $page to a true array so that IndexOf() and Format-Table work
+    # correctly even when only a single result is passed in.
+    $page = @($page)
+
     $page | Format-Table -AutoSize -Property @(
-        @{ Label = '#';           Expression = { $StartNumber + $page.IndexOf($_) } },
+        @{ Label = '#';           Expression = { $StartNumber + [array]::IndexOf($page, $_) } },
         @{ Label = 'Dist(km)';    Expression = { $_.DistanceKm   } },
         @{ Label = 'Reg.';        Expression = { $_.Registration } },
         @{ Label = 'Callsign';    Expression = { $_.Callsign     } },
@@ -420,8 +424,31 @@ while ($doRefresh) {
 
     if ($sorted.Count -eq 0) {
         Write-Host "No international flights found in the search results." -ForegroundColor Yellow
-        Remove-DebugFiles -Dir $debugDir
-        break
+        Write-Host "R to refresh, C to change airport, or Q to quit." -ForegroundColor Cyan
+
+        while ($true) {
+            $userInput = (Read-Host "Choice").Trim()
+            if ($userInput -eq '') { continue }
+
+            if ($userInput -match '^[Qq]$') {
+                Remove-DebugFiles -Dir $debugDir
+                break
+            }
+            if ($userInput -match '^[Rr]$') {
+                Write-Host ""
+                Write-Host "Refreshing..." -ForegroundColor Cyan
+                Write-Host ""
+                $doRefresh = $true
+                break
+            }
+            if ($userInput -match '^[Cc]$') {
+                Remove-DebugFiles -Dir $debugDir
+                $changeAirport = $true
+                break
+            }
+            Write-Host "  Invalid input. Enter R to refresh, C to change airport, or Q to quit." -ForegroundColor Yellow
+        }
+        continue
     }
 
     $total     = $sorted.Count
