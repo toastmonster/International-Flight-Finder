@@ -15,7 +15,12 @@
     Requires internet access to api.adsb.lol.
     airports.csv must be in the same directory as this script.
     Compatible with PowerShell 5.1 and PowerShell 7+.
+    Use -DebugMode switch to save API request/response JSON files for troubleshooting.
 #>
+
+param(
+    [switch]$DebugMode
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -92,7 +97,7 @@ function Invoke-RoutesetChunk {
     }
     $body = '{"planes":' + $planesJson + '}'
 
-    $body | Set-Content -Path (Join-Path $DebugDir "debug_routeset_request_chunk$ChunkIndex.json") -Encoding UTF8
+    if ($DebugMode) { $body | Set-Content -Path (Join-Path $DebugDir "debug_routeset_request_chunk$ChunkIndex.json") -Encoding UTF8 }
 
     try {
         $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
@@ -111,8 +116,10 @@ function Invoke-RoutesetChunk {
             -Body $bodyBytes `
             -TimeoutSec 60
 
-        $result | ConvertTo-Json -Depth 10 |
-            Set-Content -Path (Join-Path $DebugDir "debug_routeset_response_chunk$ChunkIndex.json") -Encoding UTF8
+        if ($DebugMode) {
+            $result | ConvertTo-Json -Depth 10 |
+                Set-Content -Path (Join-Path $DebugDir "debug_routeset_response_chunk$ChunkIndex.json") -Encoding UTF8
+        }
         Write-Host "  Chunk ${ChunkIndex}: OK, $(@($result).Count) routes returned" -ForegroundColor DarkGray
         return @($result)
     }
@@ -128,7 +135,7 @@ function Invoke-RoutesetChunk {
         catch { }
 
         if ($errBody) {
-            $errBody | Set-Content -Path (Join-Path $DebugDir "debug_routeset_error_chunk$ChunkIndex.json") -Encoding UTF8
+            if ($DebugMode) { $errBody | Set-Content -Path (Join-Path $DebugDir "debug_routeset_error_chunk$ChunkIndex.json") -Encoding UTF8 }
             Write-Host "  Error body: $errBody" -ForegroundColor Red
         }
         return @()
@@ -200,6 +207,7 @@ function Get-Routes {
 # ---------------------------------------------------------------------------
 function Remove-DebugFiles {
     param([string]$Dir)
+    if (-not $DebugMode) { return }
     $files = Get-ChildItem -Path $Dir -Filter 'debug_*.json' -ErrorAction SilentlyContinue
     foreach ($f in $files) {
         Remove-Item -Path $f.FullName -Force -ErrorAction SilentlyContinue
@@ -215,10 +223,11 @@ $csvPath   = Join-Path $scriptDir 'airports.csv'
 $remoteUrl = "https://ourairports.com/data/airports.csv"
 $debugDir  = $scriptDir
 
-# Clean up any orphan debug files
-Remove-DebugFiles -Dir $debugDir
-
-Write-Host "Debug files will be saved to: $debugDir" -ForegroundColor DarkGray
+# Clean up any orphan debug files from a previous interrupted run
+if ($DebugMode) {
+    Remove-DebugFiles -Dir $debugDir
+    Write-Host "Debug mode enabled. Files will be saved to: $debugDir" -ForegroundColor DarkGray
+}
 
 if (-not (Test-Path $csvPath)) {
     Write-Host "[INFO] airports.csv not found. Downloading..." -ForegroundColor Cyan
@@ -292,9 +301,11 @@ function Get-InternationalFlights {
     }
 
     Write-Host "  Found $($nearbyAircraft.Count) aircraft." -ForegroundColor DarkGray
-    $nearbyAircraft | ConvertTo-Json -Depth 5 |
-        Set-Content -Path (Join-Path $DebugDir 'debug_aircraft_response.json') -Encoding UTF8
-    Write-Host "  Aircraft data saved to: $(Join-Path $DebugDir 'debug_aircraft_response.json')" -ForegroundColor DarkGray
+    if ($DebugMode) {
+        $nearbyAircraft | ConvertTo-Json -Depth 5 |
+            Set-Content -Path (Join-Path $DebugDir 'debug_aircraft_response.json') -Encoding UTF8
+        Write-Host "  Aircraft data saved to: $(Join-Path $DebugDir 'debug_aircraft_response.json')" -ForegroundColor DarkGray
+    }
     Write-Host ""
 
     # Step 2 - fetch routes
