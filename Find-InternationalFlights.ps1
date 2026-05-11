@@ -410,12 +410,12 @@ while ($doRefresh) {
 
     Remove-DebugFiles -Dir $debugDir
 
-    $sorted = Get-InternationalFlights `
+    $sorted = @(Get-InternationalFlights `
         -Lat      $airportLat `
         -Lon      $airportLon `
         -RadiusKm 200 `
         -Country  $airportCountry `
-        -DebugDir $debugDir
+        -DebugDir $debugDir)
 
     Write-Host ("=" * 70)
     Write-Host " International flights near $($airport.name) ($($airport.icao_code)) [$airportCountry]"
@@ -456,7 +456,7 @@ while ($doRefresh) {
     $pageStart = 0
 
     $pageEnd     = [math]::Min($pageStart + $pageSize - 1, $total - 1)
-    $currentPage = $sorted[$pageStart..$pageEnd]
+    $currentPage = @($sorted[$pageStart..$pageEnd])
     $moreExist   = ($pageEnd -lt $total - 1)
 
     Write-Host "Found $total international aircraft. Showing 1-$($pageEnd + 1):" -ForegroundColor Green
@@ -498,7 +498,7 @@ while ($doRefresh) {
         if ($moreExist -and $userInput -match '^[Mm]$') {
             $pageStart   = $pageStart + $pageSize
             $pageEnd     = [math]::Min($pageStart + $pageSize - 1, $total - 1)
-            $currentPage = $sorted[$pageStart..$pageEnd]
+            $currentPage = @($sorted[$pageStart..$pageEnd])
             $moreExist   = ($pageEnd -lt $total - 1)
 
             Write-Host ""
